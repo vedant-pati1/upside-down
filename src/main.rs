@@ -1,9 +1,10 @@
 mod hero_plugin;
+mod level_designer;
 
 use bevy::{prelude::*, window::WindowResolution};
 
-const HEIGHT: u32 = 720;
-const WIDTH: u32 = 1080;
+const HEIGHT: u32 = 900;
+const WIDTH: u32 = 1000;
 
 fn main() {
     App::new()
@@ -20,5 +21,6 @@ fn main() {
                 }),
         )
         .add_plugins(hero_plugin::HeroPlugin)
+        .add_plugins(level_designer::LevelPlugin)
         .run();
 }

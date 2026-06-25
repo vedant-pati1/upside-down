@@ -90,11 +90,11 @@ fn exit_game(keys: Res<ButtonInput<KeyCode>>, mut exit: MessageWriter<AppExit>) 
 
 fn animate_hero(
     time: Res<Time>,
-    query: Query<(&mut Sprite, &mut AnimationConfig), With<MainHero>>,
+    query: Query<(&mut Sprite, &mut AnimationConfig, &mut Transform), With<MainHero>>,
     keys: Res<ButtonInput<KeyCode>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (mut sprite, mut animation_config) in query {
+    for (mut sprite, mut animation_config, mut transform) in query {
         let image: Handle<Image> = match &animation_config.animation_state {
             HeroAnimationState::Running => {
                 asset_server.load("male_hero_free/individual_sheets/male_hero-run.png")
@@ -113,10 +113,12 @@ fn animate_hero(
         animation_config.timer.tick(time.delta());
         if keys.pressed(KeyCode::ArrowLeft) {
             sprite.flip_x = true;
+            transform.translation.x -= 3.0;
             animation_config.direction = Direction::Left;
             animation_config.animation_state = HeroAnimationState::Walking;
         } else if keys.pressed(KeyCode::ArrowRight) {
             sprite.flip_x = false;
+            transform.translation.x += 3.0;
             animation_config.direction = Direction::Right;
             animation_config.animation_state = HeroAnimationState::Walking;
         } else {
