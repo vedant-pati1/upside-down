@@ -59,8 +59,6 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    commands.spawn(Camera2d);
-
     let texture: Handle<Image> =
         asset_server.load("male_hero_free/individual_sheets/male_hero-idle.png");
     let layout = TextureAtlasLayout::from_grid(UVec2::splat(128), 10, 1, None, None);
