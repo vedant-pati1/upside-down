@@ -1,13 +1,17 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
+use crate::physics;
+
+use super::level_designer::TileEntity;
+use super::physics::{Collider, CollisionDirection, Velocity};
+
 pub struct HeroPlugin;
 
 impl Plugin for HeroPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(Update, exit_game)
-            .add_systems(Update, animate_hero);
+        app.add_systems(Startup, add_hero)
+            .add_systems(Update, (animate_hero, move_hero));
     }
 }
 
@@ -47,14 +51,15 @@ impl AnimationConfig {
         }
     }
     fn reset_timer(self: &mut Self) {
-        self.timer = Timer::new(
-            Duration::from_secs_f32(1.0 / self.fps as f32),
-            TimerMode::Once,
-        );
+        self.timer.reset();
+        // self.timer = Timer::new(
+        //     Duration::from_secs_f32(1.0 / self.fps as f32),
+        //     TimerMode::Once,
+        // );
     }
 }
 
-fn setup(
+fn add_hero(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
@@ -63,10 +68,16 @@ fn setup(
         asset_server.load("male_hero_free/individual_sheets/male_hero-idle.png");
     let layout = TextureAtlasLayout::from_grid(UVec2::splat(128), 10, 1, None, None);
     let atlas_layout = texture_atlas_layouts.add(layout);
-    let animation_config = AnimationConfig::new(0, 9, 60);
+    let animation_config = AnimationConfig::new(0, 9, 24);
 
     commands.spawn((
         Sprite {
+            color: Color::Srgba(Srgba {
+                red: 1.0,
+                green: 0.0,
+                blue: 0.0,
+                alpha: 0.5,
+            }),
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: atlas_layout,
@@ -77,22 +88,26 @@ fn setup(
         Transform::from_scale(Vec3::splat(2.0)),
         animation_config,
         MainHero,
+        Velocity { x: 0.0, y: 0.0 },
+        Collider {
+            height: 128.0,
+            width: 128.0,
+            center: Vec2 { x: 0.0, y: 0.0 },
+        },
     ));
-}
-
-fn exit_game(keys: Res<ButtonInput<KeyCode>>, mut exit: MessageWriter<AppExit>) {
-    if keys.just_pressed(KeyCode::Escape) {
-        exit.write(AppExit::Success);
-    }
+    commands.spawn((
+        Sprite::from_color(Color::srgba(0.0, 0.0, 0.8, 0.5), Vec2 { x: 0.0, y: 0.0 }),
+        // Transform,
+    ));
 }
 
 fn animate_hero(
     time: Res<Time>,
-    query: Query<(&mut Sprite, &mut AnimationConfig, &mut Transform), With<MainHero>>,
+    query: Query<(&mut Sprite, &mut AnimationConfig), With<MainHero>>,
     keys: Res<ButtonInput<KeyCode>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (mut sprite, mut animation_config, mut transform) in query {
+    for (mut sprite, mut animation_config) in query {
         let image: Handle<Image> = match &animation_config.animation_state {
             HeroAnimationState::Running => {
                 asset_server.load("male_hero_free/individual_sheets/male_hero-run.png")
@@ -110,13 +125,9 @@ fn animate_hero(
         sprite.image = image;
         animation_config.timer.tick(time.delta());
         if keys.pressed(KeyCode::ArrowLeft) {
-            sprite.flip_x = true;
-            transform.translation.x -= 3.0;
             animation_config.direction = Direction::Left;
             animation_config.animation_state = HeroAnimationState::Walking;
         } else if keys.pressed(KeyCode::ArrowRight) {
-            sprite.flip_x = false;
-            transform.translation.x += 3.0;
             animation_config.direction = Direction::Right;
             animation_config.animation_state = HeroAnimationState::Walking;
         } else {
@@ -133,5 +144,67 @@ fn animate_hero(
             }
             animation_config.reset_timer();
         }
+    }
+}
+
+fn move_hero(
+    hero_query: Query<
+        (&mut Sprite, &mut Transform, &mut Collider),
+        (Without<TileEntity>, With<MainHero>),
+    >,
+    tile_query: Query<(&Transform, &Collider), (With<TileEntity>, Without<MainHero>)>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    for (mut hero_sprite, mut hero_transform, mut hero_collider) in hero_query {
+        for (tile_transform, tile_collider) in tile_query {
+            if let Some(collision_direction) = hero_collider.collision_detection(tile_collider) {
+                println!(
+                    "tile: X: {}, Y: {}",
+                    tile_collider.center.x, tile_collider.center.y
+                );
+                match collision_direction {
+                    CollisionDirection::Left(diff) => {
+                        hero_transform.translation.x += diff;
+                        hero_collider.center.x += diff;
+                        println!("diff +x:{diff}")
+                    }
+                    CollisionDirection::Right(diff) => {
+                        hero_transform.translation.x -= diff;
+                        hero_collider.center.x -= diff;
+                        println!("diff -x:{diff}");
+                    }
+                    CollisionDirection::Down(diff) => {
+                        hero_transform.translation.y += diff;
+                        hero_collider.center.y += diff;
+                        println!("diff +y:{diff}");
+                    }
+                    CollisionDirection::Up(diff) => {
+                        hero_transform.translation.y -= diff;
+                        hero_collider.center.y -= diff;
+                        println!("diff -y:{diff}");
+                    }
+                }
+            }
+        }
+
+        if keys.pressed(KeyCode::ArrowLeft) {
+            hero_sprite.flip_x = true;
+            hero_transform.translation.x -= 3.0;
+            hero_collider.center.x = hero_transform.translation.x;
+        } else if keys.pressed(KeyCode::ArrowRight) {
+            hero_sprite.flip_x = false;
+            hero_transform.translation.x += 3.0;
+            hero_collider.center.x = hero_transform.translation.x;
+        } else if keys.pressed(KeyCode::ArrowUp) {
+            hero_transform.translation.y += 3.0;
+            hero_collider.center.y = hero_transform.translation.y;
+        } else if keys.pressed(KeyCode::ArrowDown) {
+            hero_transform.translation.y -= 3.0;
+            hero_collider.center.y = hero_transform.translation.y;
+        }
+        println!(
+            "X: {}, Y: {}",
+            hero_transform.translation.x, hero_transform.translation.y
+        );
     }
 }

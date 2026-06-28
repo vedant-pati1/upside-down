@@ -1,5 +1,5 @@
 
-# how to build and run
+# how to play
 ```bash
     cargo build --release
     cd ./target/release
@@ -8,7 +8,7 @@
 ```
 or just 
 ```bash
-    cargo run
+    cargo run # low optimization build
 ```
 
 # Credits

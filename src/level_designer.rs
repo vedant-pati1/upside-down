@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
+use super::physics::Collider;
+
 pub struct LevelPlugin;
 
 impl Plugin for LevelPlugin {
@@ -11,7 +13,7 @@ impl Plugin for LevelPlugin {
             vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
             vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
             vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-            vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            vec![0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
             vec![0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
             vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -55,6 +57,9 @@ struct LevelMatrix {
     matrix: Vec<Vec<Tiles>>,
 }
 
+#[derive(Component)]
+pub struct TileEntity;
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -86,6 +91,15 @@ fn setup(
                         z: 0.0,
                     })
                     .with_scale(Vec3::splat(2.5)),
+                    TileEntity,
+                    Collider {
+                        height: 32.0 * 2.5,
+                        width: 32.0 * 2.5,
+                        center: Vec2 {
+                            x: (crate::WIDTH as f32) * (world_x as f32) / (matrix.columns as f32),
+                            y: (crate::HEIGHT as f32) * (world_y as f32) / (matrix.rows as f32),
+                        },
+                    },
                 ));
             };
         }
