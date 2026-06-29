@@ -1,15 +1,18 @@
 use bevy::prelude::*;
+use std::f32;
 use std::time::Duration;
 
+use crate::physics::translation_using_vel;
+
 use super::level_designer::TileEntity;
-use super::physics::{Collider, CollisionDirection, Velocity};
+use super::physics::{Collider, Gravity, Velocity};
 
 pub struct HeroPlugin;
 
 impl Plugin for HeroPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, add_hero)
-            .add_systems(Update, (animate_hero, move_hero));
+            .add_systems(Update, (animate_hero, move_hero, rotate_gravity));
     }
 }
 
@@ -80,7 +83,8 @@ fn add_hero(
         Transform::from_scale(Vec3::splat(2.0)),
         animation_config,
         MainHero,
-        Velocity { x: 0.0, y: 0.0 },
+        Velocity(Vec2::ZERO),
+        Gravity(Vec2::new(0.0, -1.0)),
         Collider {
             height: 70.0,
             width: 40.0,
@@ -100,7 +104,7 @@ fn animate_hero(
                 asset_server.load("male_hero_free/individual_sheets/male_hero-run.png")
             }
             HeroAnimationState::Falling => {
-                asset_server.load("male_hero_free/individual_sheets/male_hero-fall.png")
+                asset_server.load("male_hero_free/individual_sheets/male_hero-fall_loop.png")
             }
             HeroAnimationState::Walking => {
                 asset_server.load("male_hero_free/individual_sheets/male_hero-walk.png")
@@ -109,14 +113,20 @@ fn animate_hero(
                 asset_server.load("male_hero_free/individual_sheets/male_hero-idle.png")
             }
         };
+
         sprite.image = image;
         animation_config.timer.tick(time.delta());
-        if keys.pressed(KeyCode::ArrowLeft) {
+        if keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA) {
+            sprite.flip_x = true;
             animation_config.direction = Direction::Left;
             animation_config.animation_state = HeroAnimationState::Walking;
-        } else if keys.pressed(KeyCode::ArrowRight) {
+        } else if keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD) {
+            sprite.flip_x = false;
             animation_config.direction = Direction::Right;
             animation_config.animation_state = HeroAnimationState::Walking;
+        } else if keys.pressed(KeyCode::ArrowDown) {
+            animation_config.end_index = 2;
+            animation_config.animation_state = HeroAnimationState::Falling;
         } else {
             animation_config.animation_state = HeroAnimationState::Idle;
         }
@@ -135,59 +145,73 @@ fn animate_hero(
 }
 
 fn move_hero(
+    time: Res<Time>,
     hero_query: Query<
-        (&mut Sprite, &mut Transform, &Collider),
+        (
+            &mut Sprite,
+            &mut Transform,
+            &Collider,
+            &mut Velocity,
+            &mut Gravity,
+        ),
         (Without<TileEntity>, With<MainHero>),
     >,
     tile_query: Query<(&Transform, &Collider), (With<TileEntity>, Without<MainHero>)>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
-    for (mut hero_sprite, mut hero_transform, hero_collider) in hero_query {
+    for (mut hero_sprite, mut hero_transform, hero_collider, mut vel, mut gravity) in hero_query {
         for (tile_transform, tile_collider) in tile_query {
-            if let Some(collision_direction) = hero_collider.collision_detection(
+            if keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA) {
+                vel.0.x = -3.0;
+                vel.0.y = 0.0;
+            } else if keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD) {
+                vel.0.x = 3.0;
+                vel.0.y = 0.0;
+            } else if keys.pressed(KeyCode::ArrowUp) || keys.pressed(KeyCode::KeyW) {
+                vel.0.x = 0.0;
+                vel.0.y = 3.0;
+            } else if keys.pressed(KeyCode::ArrowDown) || keys.pressed(KeyCode::KeyW) {
+                vel.0.x = 0.0;
+                vel.0.y = -3.0;
+            } else {
+                vel.0.x = 0.0;
+                vel.0.y = 0.0
+            }
+            let mut grav = Velocity(gravity.0);
+            translation_using_vel(&mut hero_transform, &mut vel, &mut grav, 0.05);
+
+            if let Some(diff) = hero_collider.collision_detection(
                 hero_transform.translation.truncate(),
                 tile_collider,
                 tile_transform.translation.truncate(),
             ) {
-                println!(
-                    "tile: X: {}, Y: {}",
-                    tile_transform.translation.x, tile_transform.translation.y
-                );
-                match collision_direction {
-                    CollisionDirection::Left(diff) => {
-                        hero_transform.translation.x += diff;
-                        println!("diff +x:{diff}")
-                    }
-                    CollisionDirection::Right(diff) => {
-                        hero_transform.translation.x -= diff;
-                        println!("diff -x:{diff}");
-                    }
-                    CollisionDirection::Down(diff) => {
-                        hero_transform.translation.y += diff;
-                        println!("diff +y:{diff}");
-                    }
-                    CollisionDirection::Up(diff) => {
-                        hero_transform.translation.y -= diff;
-                        println!("diff -y:{diff}");
-                    }
-                }
+                hero_transform.translation -= diff.extend(0.0);
             }
+            // println!(
+            //     "X: {}, y: {}",
+            //     hero_transform.translation.x, hero_transform.translation.y
+            // );
         }
-
-        if keys.pressed(KeyCode::ArrowLeft) {
-            hero_sprite.flip_x = true;
-            hero_transform.translation.x -= 3.0;
-        } else if keys.pressed(KeyCode::ArrowRight) {
-            hero_sprite.flip_x = false;
-            hero_transform.translation.x += 3.0;
-        } else if keys.pressed(KeyCode::ArrowUp) {
-            hero_transform.translation.y += 3.0;
-        } else if keys.pressed(KeyCode::ArrowDown) {
-            hero_transform.translation.y -= 3.0;
-        }
-        println!(
-            "X: {}, Y: {}",
-            hero_transform.translation.x, hero_transform.translation.y
-        );
     }
+}
+
+fn rotate_gravity(
+    mut query: Query<(&mut Transform, &mut Gravity), With<MainHero>>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    let (mut transform, mut gravity) = query.single_mut().unwrap();
+
+    if keys.pressed(KeyCode::KeyJ) {
+        let angle = f32::consts::FRAC_PI_2;
+        gravity.0 = gravity.0.rotate(Vec2::from_angle(angle));
+        let tmp = transform.translation.truncate();
+        transform.translation = tmp.rotate(Vec2::from_angle(angle)).extend(0.0);
+    } else if keys.pressed(KeyCode::KeyL) {
+        let angle = -f32::consts::FRAC_PI_2;
+        gravity.0 = gravity.0.rotate(Vec2::from_angle(angle));
+        let tmp = transform.translation.truncate();
+        transform.translation = tmp.rotate(Vec2::from_angle(angle)).extend(0.0);
+    }
+
+    // println!("X: {}, y: {}", gravity.0.x, gravity.0.y);
 }

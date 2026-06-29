@@ -18,16 +18,10 @@ impl Plugin for PhysicsDebugPlugin {
 }
 
 #[derive(Component)]
-pub struct Velocity {
-    pub x: f32,
-    pub y: f32,
-}
+pub struct Velocity(pub Vec2);
 
 #[derive(Component)]
-struct Gravity {
-    x: f32,
-    y: f32,
-}
+pub struct Gravity(pub Vec2);
 
 //4 sided shape
 #[derive(Component)]
@@ -57,7 +51,7 @@ impl Collider {
         center: Vec2,
         other: &Collider,
         other_center: Vec2,
-    ) -> Option<CollisionDirection> {
+    ) -> Option<Vec2> {
         let dx = center.x - other_center.x;
         let dy = center.y - other_center.y;
 
@@ -71,15 +65,27 @@ impl Collider {
         //x is overlapping
         if overlap_x < overlap_y {
             if dx < 0.0 {
-                return Some(CollisionDirection::Right(overlap_x));
+                return Some(Vec2 {
+                    x: overlap_x,
+                    y: 0.0,
+                }); //right
             } else {
-                return Some(CollisionDirection::Left(overlap_x));
+                return Some(Vec2 {
+                    x: -1.0 * overlap_x,
+                    y: 0.0,
+                }); //left
             }
         } else {
             if dy < 0.0 {
-                return Some(CollisionDirection::Up(overlap_y));
+                return Some(Vec2 {
+                    x: 0.0,
+                    y: overlap_y,
+                }); //top
             } else {
-                return Some(CollisionDirection::Down(overlap_y));
+                return Some(Vec2 {
+                    x: 0.0,
+                    y: -1.0 * overlap_y,
+                }); //down
             }
         }
     }
@@ -168,4 +174,16 @@ fn sync_collision_boundary_debug_boxes(
             sprite.custom_size = Some(Vec2::new(collider.width, collider.height));
         }
     }
+}
+
+pub fn translation_using_vel(
+    transform: &mut Transform,
+    vel: &Velocity,
+    gravity: &Velocity,
+    threshold_speed: f32,
+) {
+    let mut tmp = vel.0 + gravity.0;
+    tmp = threshold_speed * (tmp.normalize_and_length().0);
+
+    transform.translation += tmp.extend(0.0);
 }
