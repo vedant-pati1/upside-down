@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::physics;
-
 use super::level_designer::TileEntity;
 use super::physics::{Collider, CollisionDirection, Velocity};
 
@@ -36,7 +34,7 @@ enum HeroAnimationState {
 }
 
 #[derive(Component)]
-struct MainHero;
+pub struct MainHero;
 
 impl AnimationConfig {
     fn new(start: usize, end: usize, fps: u8) -> Self {
@@ -66,18 +64,12 @@ fn add_hero(
 ) {
     let texture: Handle<Image> =
         asset_server.load("male_hero_free/individual_sheets/male_hero-idle.png");
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(128), 10, 1, None, None);
+    let layout = TextureAtlasLayout::from_grid(UVec2::new(128, 122), 10, 1, None, None);
     let atlas_layout = texture_atlas_layouts.add(layout);
     let animation_config = AnimationConfig::new(0, 9, 24);
 
     commands.spawn((
         Sprite {
-            color: Color::Srgba(Srgba {
-                red: 1.0,
-                green: 0.0,
-                blue: 0.0,
-                alpha: 0.5,
-            }),
             image: texture.clone(),
             texture_atlas: Some(TextureAtlas {
                 layout: atlas_layout,
@@ -90,14 +82,9 @@ fn add_hero(
         MainHero,
         Velocity { x: 0.0, y: 0.0 },
         Collider {
-            height: 128.0,
-            width: 128.0,
-            center: Vec2 { x: 0.0, y: 0.0 },
+            height: 70.0,
+            width: 40.0,
         },
-    ));
-    commands.spawn((
-        Sprite::from_color(Color::srgba(0.0, 0.0, 0.8, 0.5), Vec2 { x: 0.0, y: 0.0 }),
-        // Transform,
     ));
 }
 
@@ -149,38 +136,38 @@ fn animate_hero(
 
 fn move_hero(
     hero_query: Query<
-        (&mut Sprite, &mut Transform, &mut Collider),
+        (&mut Sprite, &mut Transform, &Collider),
         (Without<TileEntity>, With<MainHero>),
     >,
     tile_query: Query<(&Transform, &Collider), (With<TileEntity>, Without<MainHero>)>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
-    for (mut hero_sprite, mut hero_transform, mut hero_collider) in hero_query {
+    for (mut hero_sprite, mut hero_transform, hero_collider) in hero_query {
         for (tile_transform, tile_collider) in tile_query {
-            if let Some(collision_direction) = hero_collider.collision_detection(tile_collider) {
+            if let Some(collision_direction) = hero_collider.collision_detection(
+                hero_transform.translation.truncate(),
+                tile_collider,
+                tile_transform.translation.truncate(),
+            ) {
                 println!(
                     "tile: X: {}, Y: {}",
-                    tile_collider.center.x, tile_collider.center.y
+                    tile_transform.translation.x, tile_transform.translation.y
                 );
                 match collision_direction {
                     CollisionDirection::Left(diff) => {
                         hero_transform.translation.x += diff;
-                        hero_collider.center.x += diff;
                         println!("diff +x:{diff}")
                     }
                     CollisionDirection::Right(diff) => {
                         hero_transform.translation.x -= diff;
-                        hero_collider.center.x -= diff;
                         println!("diff -x:{diff}");
                     }
                     CollisionDirection::Down(diff) => {
                         hero_transform.translation.y += diff;
-                        hero_collider.center.y += diff;
                         println!("diff +y:{diff}");
                     }
                     CollisionDirection::Up(diff) => {
                         hero_transform.translation.y -= diff;
-                        hero_collider.center.y -= diff;
                         println!("diff -y:{diff}");
                     }
                 }
@@ -190,17 +177,13 @@ fn move_hero(
         if keys.pressed(KeyCode::ArrowLeft) {
             hero_sprite.flip_x = true;
             hero_transform.translation.x -= 3.0;
-            hero_collider.center.x = hero_transform.translation.x;
         } else if keys.pressed(KeyCode::ArrowRight) {
             hero_sprite.flip_x = false;
             hero_transform.translation.x += 3.0;
-            hero_collider.center.x = hero_transform.translation.x;
         } else if keys.pressed(KeyCode::ArrowUp) {
             hero_transform.translation.y += 3.0;
-            hero_collider.center.y = hero_transform.translation.y;
         } else if keys.pressed(KeyCode::ArrowDown) {
             hero_transform.translation.y -= 3.0;
-            hero_collider.center.y = hero_transform.translation.y;
         }
         println!(
             "X: {}, Y: {}",

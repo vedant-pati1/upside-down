@@ -24,6 +24,7 @@ fn main() {
         .add_plugins(hero_plugin::HeroPlugin)
         .add_plugins(level_designer::LevelPlugin)
         .add_plugins(camera::CameraPlugin)
+        .add_plugins(physics::PhysicsDebugPlugin)
         .add_systems(Update, exit_game)
         .run();
 }
