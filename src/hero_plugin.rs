@@ -204,13 +204,11 @@ fn rotate_gravity(
     if keys.pressed(KeyCode::KeyJ) {
         let angle = f32::consts::FRAC_PI_2;
         gravity.0 = gravity.0.rotate(Vec2::from_angle(angle));
-        let tmp = transform.translation.truncate();
-        transform.translation = tmp.rotate(Vec2::from_angle(angle)).extend(0.0);
+        transform.rotate_z(angle);
     } else if keys.pressed(KeyCode::KeyL) {
         let angle = -f32::consts::FRAC_PI_2;
         gravity.0 = gravity.0.rotate(Vec2::from_angle(angle));
-        let tmp = transform.translation.truncate();
-        transform.translation = tmp.rotate(Vec2::from_angle(angle)).extend(0.0);
+        transform.rotate_z(angle);
     }
 
     // println!("X: {}, y: {}", gravity.0.x, gravity.0.y);
